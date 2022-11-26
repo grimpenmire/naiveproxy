@@ -38,7 +38,8 @@ class NaiveProxy {
              int concurrency,
              RedirectResolver* resolver,
              HttpNetworkSession* session,
-             const NetworkTrafficAnnotationTag& traffic_annotation);
+             const NetworkTrafficAnnotationTag& traffic_annotation,
+             bool websocket_proxy);
   ~NaiveProxy();
   NaiveProxy(const NaiveProxy&) = delete;
   NaiveProxy& operator=(const NaiveProxy&) = delete;

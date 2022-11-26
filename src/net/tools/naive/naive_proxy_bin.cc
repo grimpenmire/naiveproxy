@@ -112,6 +112,7 @@ struct Params {
   logging::LoggingSettings log_settings;
   base::FilePath net_log_path;
   base::FilePath ssl_key_path;
+  std::string websocket_path;
 };
 
 std::unique_ptr<base::Value> GetConstants() {
@@ -295,6 +296,16 @@ bool ParseCommandLine(const CommandLine& cmdline, Params* params) {
     net::GetIdentityFromURL(url, &params->proxy_user, &params->proxy_pass);
   }
 
+  if (params->proxy_url.compare(0, 6, "wss://") == 0) {
+    params->proxy_url.replace(0, 3, "https");
+    params->websocket_path = url.path();
+
+    std::string port = std::to_string(url.EffectiveIntPort());
+    std::string host_and_port = url.host() + ":" + port;
+    params->extra_headers.SetHeader("Host", host_and_port);
+    params->extra_headers.SetHeader("X-Websocket-Path", url.path());
+  }
+
   if (!cmdline.concurrency.empty()) {
     if (!base::StringToInt(cmdline.concurrency, &params->concurrency) ||
         params->concurrency < 1) {
@@ -416,7 +427,14 @@ std::unique_ptr<URLRequestContext> BuildURLRequestContext(
 
   ProxyConfig proxy_config;
   proxy_config.proxy_rules().ParseFromString(params.proxy_url);
-  LOG(INFO) << "Proxying via " << params.proxy_url;
+  if (params.websocket_path.empty()) {
+    LOG(INFO) << "Proxying via " << params.proxy_url;
+  } else {
+    std::string proxy_url = params.proxy_url;
+    proxy_url.replace(0, 5, "wss");
+    LOG(INFO) << "Proxying via websocket " << proxy_url
+              << params.websocket_path;
+  }
   auto proxy_service =
       ConfiguredProxyResolutionService::CreateWithoutProxyResolver(
           std::make_unique<ProxyConfigServiceFixed>(
@@ -587,10 +605,11 @@ int main(int argc, char* argv[]) {
         params.resolver_prefix);
   }
 
+  bool is_websocket_proxy = !params.websocket_path.empty();
   net::NaiveProxy naive_proxy(std::move(listen_socket), params.protocol,
                               params.listen_user, params.listen_pass,
                               params.concurrency, resolver.get(), session,
-                              kTrafficAnnotation);
+                              kTrafficAnnotation, is_websocket_proxy);
 
   base::RunLoop().Run();
 

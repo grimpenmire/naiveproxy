@@ -413,6 +413,10 @@ int HttpProxyClientSocket::DoReadHeadersComplete(int result) {
   }
 
   switch (response_.headers->response_code()) {
+    case 101:
+        next_state_ = STATE_DONE;
+        return OK;
+
     case 200:  // OK
       if (http_stream_parser_->IsMoreDataBuffered())
         // The proxy sent extraneous data after the headers.

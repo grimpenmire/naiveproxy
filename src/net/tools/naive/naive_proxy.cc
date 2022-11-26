@@ -33,7 +33,8 @@ NaiveProxy::NaiveProxy(std::unique_ptr<ServerSocket> listen_socket,
                        int concurrency,
                        RedirectResolver* resolver,
                        HttpNetworkSession* session,
-                       const NetworkTrafficAnnotationTag& traffic_annotation)
+                       const NetworkTrafficAnnotationTag& traffic_annotation,
+                       bool websocket_proxy)
     : listen_socket_(std::move(listen_socket)),
       protocol_(protocol),
       listen_user_(listen_user),
@@ -59,7 +60,14 @@ NaiveProxy::NaiveProxy(std::unique_ptr<ServerSocket> listen_socket,
   // See HttpStreamFactory::Job::DoInitConnectionImpl()
   proxy_ssl_config_.disable_cert_verification_network_fetches = true;
   server_ssl_config_.alpn_protos = session_->GetAlpnProtos();
-  proxy_ssl_config_.alpn_protos = session_->GetAlpnProtos();
+  if (websocket_proxy) {
+    // We don't support websocket proxy with HTTP/2, mainly because it
+    // seems CDNs don't support that anyways, and also it makes things
+    // easier.
+    proxy_ssl_config_.alpn_protos = { kProtoHTTP11 };
+  } else {
+    proxy_ssl_config_.alpn_protos = session_->GetAlpnProtos();
+  }
   server_ssl_config_.application_settings = session_->GetApplicationSettings();
   proxy_ssl_config_.application_settings = session_->GetApplicationSettings();
   server_ssl_config_.ignore_certificate_errors =
